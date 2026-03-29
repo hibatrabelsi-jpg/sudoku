@@ -1,93 +1,144 @@
 """
 Direction artistique du projet.
-Toutes les constantes visuelles sont centralisees ici.
-Pour changer l'apparence, il suffit de modifier ce fichier.
+Theme noir et blanc avec accents bleu et pastels.
+Proportions basees sur le nombre d'or (phi = 1.618).
+Polices : Comucan (titres), Creato Display (contenu).
 """
 
+import os
+
 # =============================================================================
-# DIMENSIONS DE LA FENETRE
+# NOMBRE D'OR
 # =============================================================================
 
-WINDOW_WIDTH = 1000
-WINDOW_HEIGHT = 700
+PHI = 1.618
+
+# Echelle de spacing basee sur phi (approximation de Fibonacci)
+SP_XS = 5
+SP_S = 8
+SP_M = 13
+SP_L = 21
+SP_XL = 34
+SP_XXL = 55
+SP_XXXL = 89
+
+# =============================================================================
+# DIMENSIONS DE LA FENETRE (quasi plein ecran, adapte dans app.py)
+# =============================================================================
+
+WINDOW_WIDTH = 1440
+WINDOW_HEIGHT = 900
 
 # Grille de Sudoku
-GRID_SIZE = 540                     # taille totale de la grille (9x9)
-CELL_SIZE = GRID_SIZE // 9          # taille d'une case (60px)
-GRID_OFFSET_X = 40                  # marge gauche de la grille
-GRID_OFFSET_Y = 80                  # marge haute de la grille (place pour le titre)
+CELL_SIZE = 64
+GRID_SIZE = CELL_SIZE * 9                   # 576px
+GRID_OFFSET_X = SP_XXL                      # 55px
+GRID_OFFSET_Y = SP_XXXL + SP_M              # 102px
 
-# Panneau lateral (stats, boutons)
-PANEL_X = GRID_OFFSET_X + GRID_SIZE + 40
+# Panneau lateral
+PANEL_X = GRID_OFFSET_X + GRID_SIZE + SP_XL
 PANEL_Y = GRID_OFFSET_Y
-PANEL_WIDTH = WINDOW_WIDTH - PANEL_X - 30
-
-# =============================================================================
-# PALETTE DE COULEURS (style epure et minimaliste)
-# =============================================================================
-
-# Fond
-BG_COLOR = (245, 245, 240)          # blanc casse
-
-# Grille
-GRID_LINE_THIN = (200, 200, 195)    # lignes fines (entre les cases)
-GRID_LINE_THICK = (50, 50, 48)      # lignes epaisses (entre les carres 3x3)
-
-# Cases
-CELL_NORMAL = (255, 255, 255)       # fond de case normal
-CELL_SELECTED = (220, 235, 250)     # case selectionnee (bleu tres leger)
-CELL_HIGHLIGHT_PLACE = (200, 235, 200)  # case replay : placement (vert leger)
-CELL_HIGHLIGHT_REMOVE = (245, 210, 210) # case replay : retrait (rouge leger)
-CELL_ERROR = (250, 200, 200)        # case en erreur
-
-# Texte
-TEXT_INITIAL = (30, 30, 28)         # chiffres d'origine (noir/gras)
-TEXT_SOLVED = (50, 100, 200)        # chiffres trouves par l'algo (bleu)
-TEXT_USER = (80, 80, 180)           # chiffres entres par le joueur
-TEXT_PRIMARY = (30, 30, 28)         # texte principal
-TEXT_SECONDARY = (120, 120, 115)    # texte secondaire (labels, etc.)
-TEXT_TITLE = (50, 100, 200)         # titres
+PANEL_WIDTH = 400
 
 # Boutons
-BTN_BG = (255, 255, 255)           # fond du bouton
-BTN_BG_HOVER = (235, 240, 250)     # fond du bouton au survol
-BTN_BORDER = (180, 180, 175)       # bordure du bouton
-BTN_BORDER_HOVER = (50, 100, 200)  # bordure au survol
-BTN_TEXT = (30, 30, 28)            # texte du bouton
+BTN_HEIGHT = 44
+BTN_RADIUS = SP_S
 
-# Panneau stats
-STAT_BG = (250, 250, 247)          # fond du panneau stats
-STAT_BORDER = (220, 220, 215)      # bordure du panneau
+# =============================================================================
+# PALETTE
+# =============================================================================
+
+# Fonds
+BG_COLOR = (17, 17, 17)                     # fond principal (quasi noir)
+SURFACE_COLOR = (26, 26, 26)                 # surface/panneaux
+SURFACE_LIGHT = (38, 38, 38)                 # surface sureleve
+
+# Grille
+CELL_NORMAL = (250, 250, 250)                # fond de case (quasi blanc)
+CELL_SELECTED = (210, 225, 245)              # case selectionnee (bleu pastel)
+CELL_HIGHLIGHT_PLACE = (210, 235, 210)       # placement (vert pastel)
+CELL_HIGHLIGHT_REMOVE = (240, 210, 210)      # retrait (rose pastel)
+CELL_ERROR = (240, 200, 200)                 # erreur
+CELL_ROW_COL = (235, 240, 248)              # surlignage ligne/colonne (bleu tres leger)
+
+GRID_LINE_THIN = (200, 200, 200)             # lignes fines
+GRID_LINE_THICK = (40, 40, 40)              # lignes epaisses (carres 3x3)
+
+# Accent bleu
+ACCENT_BLUE = (70, 130, 210)                # bleu principal
+ACCENT_BLUE_LIGHT = (180, 205, 240)          # bleu pastel
+ACCENT_BLUE_DARK = (45, 90, 160)             # bleu fonce
+
+# Texte sur fond sombre
+TEXT_LIGHT = (245, 245, 245)                 # texte principal
+TEXT_MUTED = (160, 160, 160)                 # texte secondaire
+TEXT_HINT = (100, 100, 100)                  # texte discret
+
+# Texte sur fond clair (dans les cases)
+TEXT_INITIAL = (20, 20, 20)                  # chiffres d'origine (noir gras)
+TEXT_SOLVED = (70, 130, 210)                 # chiffres resolus (bleu)
+TEXT_USER = (70, 130, 210)                   # chiffres du joueur (bleu)
+TEXT_ERROR = (200, 90, 90)                   # erreurs
+
+# Titre
+TEXT_TITLE = (255, 255, 255)                 # blanc pur
+
+# Boutons
+BTN_BG = (32, 32, 32)
+BTN_BG_HOVER = (50, 65, 90)                 # hover bleu sombre
+BTN_BORDER = (70, 70, 70)
+BTN_BORDER_HOVER = ACCENT_BLUE
+BTN_TEXT = (220, 220, 220)
+
+# Stats
+STAT_BG = (25, 25, 28)
+STAT_BORDER = (45, 45, 50)
 
 # Menu
-MENU_ITEM_BG = (255, 255, 255)
-MENU_ITEM_HOVER = (240, 245, 255)
+MENU_ITEM_BG = (30, 30, 30)
+MENU_ITEM_HOVER = (40, 50, 65)
+MENU_ITEM_SELECTED_BORDER = ACCENT_BLUE
 
 # Replay
-REPLAY_BAR_BG = (230, 230, 225)    # fond de la barre de progression
-REPLAY_BAR_FILL = (50, 100, 200)   # remplissage de la progression
+REPLAY_BAR_BG = (45, 45, 50)
+REPLAY_BAR_FILL = ACCENT_BLUE
+
+# Pastels pour indicateurs
+COLOR_SUCCESS = (120, 200, 140)              # vert pastel
+COLOR_WARNING = (220, 180, 100)              # jaune pastel
+COLOR_DANGER = (210, 110, 110)               # rose/rouge pastel
+COLOR_INFO = ACCENT_BLUE
 
 # =============================================================================
 # POLICES
 # =============================================================================
 
-FONT_NAME = None                    # None = police systeme par defaut
-FONT_SIZE_TITLE = 28
-FONT_SIZE_SUBTITLE = 20
-FONT_SIZE_CELL = 28                 # chiffres dans les cases
+FONTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "fonts")
+
+FONT_TITLE_PATH = os.path.join(FONTS_DIR, "Comucan.otf")
+FONT_REGULAR_PATH = os.path.join(FONTS_DIR, "CreatoDisplay-Regular.otf")
+FONT_MEDIUM_PATH = os.path.join(FONTS_DIR, "CreatoDisplay-Medium.otf")
+FONT_BOLD_PATH = os.path.join(FONTS_DIR, "CreatoDisplay-Bold.otf")
+FONT_LIGHT_PATH = os.path.join(FONTS_DIR, "CreatoDisplay-Light.otf")
+
+FONT_SIZE_HERO = 48
+FONT_SIZE_TITLE = 32
+FONT_SIZE_SUBTITLE = 22
 FONT_SIZE_BODY = 16
-FONT_SIZE_SMALL = 14
-FONT_SIZE_BUTTON = 16
+FONT_SIZE_CELL = 28
+FONT_SIZE_SMALL = 13
+FONT_SIZE_BUTTON = 15
+
+FONT_FALLBACK = None
 
 # =============================================================================
 # TIMING
 # =============================================================================
 
 FPS = 60
-REPLAY_SPEED_DEFAULT = 10           # etapes par seconde
+REPLAY_SPEED_DEFAULT = 10
 REPLAY_SPEED_MIN = 1
 REPLAY_SPEED_MAX = 100
-REPLAY_SPEED_FAST = 50
 
 # =============================================================================
 # ECRANS
