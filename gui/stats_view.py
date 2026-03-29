@@ -1,161 +1,210 @@
 """
-Ecran de statistiques et comparaison : affiche les resultats des deux methodes
-cote a cote avec les ratios de performance.
-Permet de naviguer vers le detail de chaque methode.
+Ecran de comparaison des deux methodes.
+Layout centre avec conteneur principal et deux colonnes equilibrees.
 """
 
 import pygame
 import os
+import time
+from gui import constants as C
 from gui.constants import *
+from gui.fonts import fonts
 from gui.components import Button
 
 
+PASTEL_BLUE = (160, 190, 220)
+PASTEL_MINT = (160, 210, 190)
+PASTEL_LAVENDER = (185, 175, 215)
+PASTEL_PEACH = (215, 185, 170)
+RATIO_PASTELS = [PASTEL_BLUE, PASTEL_MINT, PASTEL_LAVENDER, PASTEL_PEACH]
+
+
 class StatsView:
-    """Ecran comparatif des deux methodes de resolution"""
 
     def __init__(self, surface):
         self.surface = surface
-        self.font_title = pygame.font.SysFont(FONT_NAME, FONT_SIZE_SUBTITLE, bold=True)
-        self.font_body = pygame.font.SysFont(FONT_NAME, FONT_SIZE_BODY)
-        self.font_small = pygame.font.SysFont(FONT_NAME, FONT_SIZE_SMALL)
-        self.font_value = pygame.font.SysFont(FONT_NAME, FONT_SIZE_BODY, bold=True)
-        self.font_ratio = pygame.font.SysFont(FONT_NAME, FONT_SIZE_SMALL, bold=True)
 
-        # Boutons
-        btn_y = 620
-        self.btn_view_bt = Button(40, btn_y, 220, 40, "Voir grille Backtracking")
-        self.btn_view_bf = Button(280, btn_y, 220, 40, "Voir grille Force Brute")
-        self.btn_replay_bt = Button(520, btn_y, 200, 40, "Replay Backtracking")
-        self.btn_menu = Button(WINDOW_WIDTH - 170, btn_y, 140, 40, "Retour au menu")
+        self.btn_view_bt = Button(0, 0, 200, BTN_HEIGHT, "Grille Backtracking")
+        self.btn_view_bf = Button(0, 0, 200, BTN_HEIGHT, "Grille Force Brute")
+        self.btn_replay_bt = Button(0, 0, 180, BTN_HEIGHT, "Replay Backtracking")
+        self.btn_menu = Button(0, 0, 140, BTN_HEIGHT, "Retour au menu")
 
-        # Donnees
         self.stats_bt = {}
         self.stats_bf = {}
         self.success_bt = False
         self.success_bf = False
         self.grid_name = ""
+        self.setup_time = 0
+        self.anim_duration = 1.2
 
     def setup(self, stats_bt, stats_bf, success_bt, success_bf, grid_path):
-        """Configure l'ecran avec les resultats des deux methodes"""
         self.stats_bt = stats_bt
         self.stats_bf = stats_bf
         self.success_bt = success_bt
         self.success_bf = success_bf
         self.grid_name = os.path.basename(grid_path).replace(".txt", "").replace("grille", "Grille ")
+        self.setup_time = time.time()
 
-    def draw(self):
-        """Dessine l'ecran de comparaison"""
-        # Titre avec nom de la grille
-        title = self.font_title.render(
-            f"Comparaison — {self.grid_name}", True, TEXT_TITLE)
-        self.surface.blit(title, (40, 30))
+    def _anim_progress(self):
+        elapsed = time.time() - self.setup_time
+        if elapsed >= self.anim_duration:
+            return 1.0
+        t = elapsed / self.anim_duration
+        return 1.0 - (1.0 - t) ** 3
 
-        subtitle = self.font_small.render(
-            f"{self.stats_bt.get('cases_vides_initiales', 0)} cases vides",
-            True, TEXT_SECONDARY)
-        self.surface.blit(subtitle, (40, 60))
+    def _container(self):
+        """
+        Conteneur principal centre.
+        Tout le contenu est positionne relativement a ce conteneur.
+        """
+        max_w = 1300
+        cw = min(max_w, C.WINDOW_WIDTH - 120)
+        cx = (C.WINDOW_WIDTH - cw) // 2
 
-        # Tableau comparatif
-        self._draw_table()
+        # Vertical
+        header_y = SP_XXL + SP_M
+        col_gap = 80
+        col_top = header_y + SP_XXXL
 
-        # Ratios
-        self._draw_ratios()
-
-        # Conclusion
-        self._draw_conclusion()
-
-        # Boutons
-        self.btn_view_bt.draw(self.surface)
-        self.btn_view_bf.draw(self.surface)
-        self.btn_replay_bt.draw(self.surface)
-        self.btn_menu.draw(self.surface)
-
-    def _draw_table(self):
-        """Dessine le tableau comparatif"""
-        table_x = 40
-        table_y = 100
-        col_label_w = 220
-        col_val_w = 180
-        row_h = 38
-        table_w = col_label_w + col_val_w * 2
-
-        # En-tete
-        header_rect = pygame.Rect(table_x, table_y, table_w, row_h)
-        pygame.draw.rect(self.surface, (235, 240, 250), header_rect)
-        pygame.draw.rect(self.surface, STAT_BORDER, header_rect, width=1)
-
-        h_label = self.font_value.render("Critere", True, TEXT_PRIMARY)
-        h_bt = self.font_value.render("Backtracking", True, TEXT_TITLE)
-        h_bf = self.font_value.render("Force Brute", True, (200, 80, 80))
-
-        self.surface.blit(h_label, (table_x + 15, table_y + 10))
-        self.surface.blit(h_bt, (table_x + col_label_w + (col_val_w - h_bt.get_width()) // 2, table_y + 10))
-        self.surface.blit(h_bf, (table_x + col_label_w + col_val_w + (col_val_w - h_bf.get_width()) // 2, table_y + 10))
+        # Deux colonnes egales
+        col_w = (cw - col_gap) // 2
+        left_x = cx
+        right_x = cx + col_w + col_gap
 
         # Lignes du tableau
+        row_h = SP_XXL
+        table_rows = 6
+        table_bottom = col_top + SP_XL + table_rows * row_h
+
+        # Insight sous les colonnes
+        insight_y = table_bottom + SP_XXL
+
+        # Boutons en bas
+        buttons_y = C.WINDOW_HEIGHT - SP_XXL - BTN_HEIGHT
+
+        return {
+            "cx": cx, "cw": cw,
+            "header_y": header_y,
+            "col_top": col_top,
+            "left_x": left_x, "right_x": right_x, "col_w": col_w,
+            "row_h": row_h,
+            "insight_y": insight_y,
+            "buttons_y": buttons_y,
+        }
+
+    def draw(self):
+        C = self._container()
+        self._draw_header(C)
+        self._draw_table(C)
+        self._draw_ratios(C)
+        self._draw_insight(C)
+        self._draw_buttons(C)
+
+    # =========================================================================
+    # HEADER — aligne sur le bord gauche du conteneur
+    # =========================================================================
+
+    def _draw_header(self, C):
+        title = fonts.title.render("Comparaison", True, TEXT_TITLE)
+        self.surface.blit(title, (C["cx"], C["header_y"]))
+
+        sep = fonts.subtitle.render(f"—  {self.grid_name}", True, TEXT_MUTED)
+        self.surface.blit(sep, (C["cx"] + title.get_width() + SP_M, C["header_y"] + SP_S))
+
+        cases = fonts.body.render(
+            f"{self.stats_bt.get('cases_vides_initiales', 0)} cases vides", True, TEXT_HINT)
+        self.surface.blit(cases, (C["cx"], C["header_y"] + SP_XL + SP_L))
+
+    # =========================================================================
+    # TABLEAU — colonne gauche, occupe toute la largeur de la colonne
+    # =========================================================================
+
+    def _draw_table(self, C):
+        tx = C["left_x"]
+        ty = C["col_top"]
+        tw = C["col_w"]
+        row_h = C["row_h"]
+
+        col_label_w = int(tw * 0.34)
+        col_bt_w = int(tw * 0.33)
+        col_bf_w = tw - col_label_w - col_bt_w
+
+        # En-tete
+        h_bt = fonts.body_bold.render("BACKTRACKING", True, PASTEL_BLUE)
+        h_bf = fonts.body_bold.render("FORCE BRUTE", True, (170, 170, 170))
+        self.surface.blit(h_bt, (tx + col_label_w + col_bt_w - h_bt.get_width(), ty))
+        self.surface.blit(h_bf, (tx + col_label_w + col_bt_w + col_bf_w - h_bf.get_width(), ty))
+
+        # Separateur en-tete
+        sep_y = ty + SP_XL
+        sep_surf = pygame.Surface((tw, 1), pygame.SRCALPHA)
+        sep_surf.fill((255, 255, 255, 35))
+        self.surface.blit(sep_surf, (tx, sep_y))
+
+        # Lignes
         rows = self._get_table_rows()
         for i, (label, val_bt, val_bf) in enumerate(rows):
-            y = table_y + row_h * (i + 1)
-            row_rect = pygame.Rect(table_x, y, table_w, row_h)
+            ry = sep_y + SP_M + i * row_h
 
-            # Fond alterne
-            if i % 2 == 0:
-                pygame.draw.rect(self.surface, CELL_NORMAL, row_rect)
-            else:
-                pygame.draw.rect(self.surface, STAT_BG, row_rect)
-            pygame.draw.rect(self.surface, STAT_BORDER, row_rect, width=1)
+            lbl = fonts.body.render(label, True, TEXT_MUTED)
+            self.surface.blit(lbl, (tx, ry + SP_XS))
 
-            # Label
-            lbl = self.font_body.render(label, True, TEXT_PRIMARY)
-            self.surface.blit(lbl, (table_x + 15, y + 10))
+            vbt = fonts.body_bold.render(val_bt, True, (225, 228, 238))
+            self.surface.blit(vbt, (tx + col_label_w + col_bt_w - vbt.get_width(), ry + SP_XS))
 
-            # Valeur backtracking
-            vbt = self.font_body.render(val_bt, True, TEXT_PRIMARY)
-            self.surface.blit(vbt, (table_x + col_label_w + (col_val_w - vbt.get_width()) // 2, y + 10))
+            vbf = fonts.body.render(val_bf, True, TEXT_MUTED)
+            self.surface.blit(vbf, (tx + col_label_w + col_bt_w + col_bf_w - vbf.get_width(), ry + SP_XS))
 
-            # Valeur force brute
-            vbf = self.font_body.render(val_bf, True, TEXT_PRIMARY)
-            self.surface.blit(vbf, (table_x + col_label_w + col_val_w + (col_val_w - vbf.get_width()) // 2, y + 10))
+            if i < len(rows) - 1:
+                line_y = ry + row_h - SP_XS
+                line_surf = pygame.Surface((tw, 1), pygame.SRCALPHA)
+                line_surf.fill((255, 255, 255, 12))
+                self.surface.blit(line_surf, (tx, line_y))
 
     def _get_table_rows(self):
-        """Prepare les lignes du tableau"""
         bt = self.stats_bt
         bf = self.stats_bf
 
-        def fmt_num(n):
-            return f"{n:,}".replace(",", " ")
-
         def fmt_time(t):
-            if t < 1:
-                return f"{t*1000:.1f} ms"
-            return f"{t:.3f} s"
+            return f"{t*1000:.1f} ms" if t < 1 else f"{t:.3f} s"
 
         def fmt_mem(b):
             kb = b / 1024
-            if kb < 1024:
-                return f"{kb:.1f} Ko"
-            return f"{kb/1024:.2f} Mo"
+            return f"{kb:.1f} Ko" if kb < 1024 else f"{kb/1024:.2f} Mo"
 
-        status_bt = "Resolu" if self.success_bt else "Echec"
-        status_bf = "Resolu" if self.success_bf else "Limite atteinte"
-
-        rows = [
-            ("Resultat", status_bt, status_bf),
-            ("Iterations", fmt_num(bt.get("iterations", 0)), fmt_num(bf.get("iterations", 0))),
-            ("Verifications", fmt_num(bt.get("verifications", 0)), fmt_num(bf.get("verifications", 0))),
-            ("Backtracks", fmt_num(bt.get("backtracks", 0)), "-"),
-            ("Temps", fmt_time(bt.get("temps_execution", 0)), fmt_time(bf.get("temps_execution", 0))),
-            ("Memoire max", fmt_mem(bt.get("memoire_max", 0)), fmt_mem(bf.get("memoire_max", 0))),
+        return [
+            ("Resultat", "Resolu" if self.success_bt else "Echec",
+             "Resolu" if self.success_bf else "Limite atteinte"),
+            ("Iterations",
+             f"{bt.get('iterations', 0):,}".replace(",", " "),
+             f"{bf.get('iterations', 0):,}".replace(",", " ")),
+            ("Verifications",
+             f"{bt.get('verifications', 0):,}".replace(",", " "),
+             f"{bf.get('verifications', 0):,}".replace(",", " ")),
+            ("Backtracks",
+             f"{bt.get('backtracks', 0):,}".replace(",", " "), "\u2014"),
+            ("Temps",
+             fmt_time(bt.get("temps_execution", 0)),
+             fmt_time(bf.get("temps_execution", 0))),
+            ("Memoire",
+             fmt_mem(bt.get("memoire_max", 0)),
+             fmt_mem(bf.get("memoire_max", 0))),
         ]
-        return rows
 
-    def _draw_ratios(self):
-        """Dessine les ratios de performance avec barres visuelles"""
-        x = 40
-        y = 360
+    # =========================================================================
+    # RATIOS — colonne droite, barres sur toute la largeur de la colonne
+    # =========================================================================
 
-        title = self.font_value.render("Ratios (Force Brute / Backtracking)", True, TEXT_PRIMARY)
-        self.surface.blit(title, (x, y))
+    def _draw_ratios(self, C):
+        rx = C["right_x"]
+        ry = C["col_top"]
+        rw = C["col_w"]
+
+        title = fonts.subtitle.render("Ratios", True, TEXT_LIGHT)
+        self.surface.blit(title, (rx, ry - SP_S))
+
+        sub = fonts.body.render("Force Brute / Backtracking", True, TEXT_HINT)
+        self.surface.blit(sub, (rx, ry + SP_XL))
 
         bt = self.stats_bt
         bf = self.stats_bf
@@ -170,59 +219,91 @@ class StatsView:
         if bt.get("memoire_max", 0) > 0:
             ratios.append(("Memoire", bf["memoire_max"] / bt["memoire_max"]))
 
-        bar_x = x
-        bar_y = y + 35
-        bar_max_w = 500
+        bar_start_y = ry + SP_XXL + SP_XL + SP_M
+        bar_max_w = rw
+        bar_h = 10
         max_ratio = max((r for _, r in ratios), default=1)
+        anim = self._anim_progress()
+
+        spacing = C["row_h"] * 6 // max(len(ratios), 1)
+        spacing = min(spacing, SP_XXXL + SP_S)
 
         for i, (label, ratio) in enumerate(ratios):
-            cy = bar_y + i * 40
+            cy = bar_start_y + i * spacing
+            pastel = RATIO_PASTELS[i % len(RATIO_PASTELS)]
 
-            # Label
-            lbl = self.font_body.render(label, True, TEXT_PRIMARY)
-            self.surface.blit(lbl, (bar_x, cy + 2))
+            lbl = fonts.body_bold.render(label, True, (190, 190, 190))
+            self.surface.blit(lbl, (rx, cy))
 
-            # Barre
-            bx = bar_x + 130
-            bar_w = int((ratio / max_ratio) * bar_max_w)
-            bar_w = max(bar_w, 4)
+            val_text = f"x{ratio:.1f}"
+            val_surf = fonts.subtitle.render(val_text, True, pastel)
+            self.surface.blit(val_surf, (rx + rw - val_surf.get_width(), cy))
 
-            bar_rect = pygame.Rect(bx, cy + 2, bar_w, 22)
-            pygame.draw.rect(self.surface, (200, 80, 80, 150), bar_rect, border_radius=4)
+            bar_y = cy + SP_L + SP_M
+            bg_surf = pygame.Surface((bar_max_w, bar_h), pygame.SRCALPHA)
+            bg_surf.fill((255, 255, 255, 15))
+            self.surface.blit(bg_surf, (rx, bar_y))
 
-            # Valeur
-            val = self.font_ratio.render(f"x{ratio:.1f}", True, (200, 80, 80))
-            self.surface.blit(val, (bx + bar_w + 10, cy + 3))
+            target_w = max(2, int((ratio / max_ratio) * bar_max_w))
+            current_w = int(target_w * anim)
+            if current_w > 0:
+                fill_surf = pygame.Surface((current_w, bar_h), pygame.SRCALPHA)
+                fill_surf.fill((*pastel, 160))
+                self.surface.blit(fill_surf, (rx, bar_y))
 
-    def _draw_conclusion(self):
-        """Dessine la conclusion"""
-        y = 530
+    # =========================================================================
+    # INSIGHT — pleine largeur du conteneur
+    # =========================================================================
 
-        pygame.draw.line(self.surface, STAT_BORDER, (40, y), (WINDOW_WIDTH - 40, y), 1)
+    def _draw_insight(self, C):
+        iy = C["insight_y"]
+        ix = C["cx"]
 
-        conclusion = self.font_body.render(
-            "Le backtracking est plus performant sur tous les criteres car il detecte",
-            True, TEXT_PRIMARY)
-        conclusion2 = self.font_body.render(
-            "les erreurs immediatement au lieu de remplir toute la grille pour rien.",
-            True, TEXT_PRIMARY)
-        self.surface.blit(conclusion, (40, y + 15))
-        self.surface.blit(conclusion2, (40, y + 38))
+        border_surf = pygame.Surface((2, SP_XXL + SP_L), pygame.SRCALPHA)
+        border_surf.fill((*PASTEL_BLUE, 100))
+        self.surface.blit(border_surf, (ix, iy))
 
-        if not self.success_bf:
-            note = self.font_small.render(
-                f"Note : la force brute a atteint la limite de {self.stats_bf.get('iterations', 0):,} iterations sans resoudre la grille.".replace(",", " "),
-                True, TEXT_SECONDARY)
-            self.surface.blit(note, (40, y + 68))
+        text_x = ix + SP_L
+        line1 = fonts.body.render(
+            "Le backtracking detecte les erreurs immediatement, ce qui lui permet d'elaguer",
+            True, TEXT_MUTED)
+        line2 = fonts.body.render(
+            "des branches entieres et de resoudre la grille en quelques millisecondes.",
+            True, TEXT_MUTED)
+        line3 = fonts.body.render(
+            "La force brute explore toutes les combinaisons sans verification intermediaire.",
+            True, TEXT_MUTED)
+
+        self.surface.blit(line1, (text_x, iy))
+        self.surface.blit(line2, (text_x, iy + SP_XL))
+        self.surface.blit(line3, (text_x, iy + SP_XL * 2))
+
+    # =========================================================================
+    # BOUTONS — centres horizontalement dans le conteneur
+    # =========================================================================
+
+    def _draw_buttons(self, C):
+        by = C["buttons_y"]
+        total_w = 200 + SP_M + 200 + SP_M + 180 + SP_XL + 140
+        start_x = C["cx"] + (C["cw"] - total_w) // 2
+
+        self.btn_view_bt.rect.topleft = (start_x, by)
+        self.btn_view_bf.rect.topleft = (start_x + 200 + SP_M, by)
+        self.btn_replay_bt.rect.topleft = (start_x + 400 + SP_M * 2, by)
+        self.btn_menu.rect.topleft = (start_x + 580 + SP_M * 2 + SP_XL, by)
+
+        self.btn_view_bt.draw(self.surface)
+        self.btn_view_bf.draw(self.surface)
+        self.btn_replay_bt.draw(self.surface)
+
+        menu_rect = self.btn_menu.rect
+        border_color = (55, 55, 58) if not self.btn_menu.hovered else (80, 80, 85)
+        pygame.draw.rect(self.surface, BG_COLOR, menu_rect, border_radius=BTN_RADIUS)
+        pygame.draw.rect(self.surface, border_color, menu_rect, width=1, border_radius=BTN_RADIUS)
+        menu_text = fonts.small.render(self.btn_menu.text, True, TEXT_HINT)
+        self.surface.blit(menu_text, menu_text.get_rect(center=menu_rect.center))
 
     def handle_event(self, event):
-        """
-        Retourne l'action choisie :
-        - "view_bt" : voir la grille backtracking
-        - "view_bf" : voir la grille force brute
-        - "replay_bt" : replay du backtracking
-        - "menu" : retour au menu
-        """
         if self.btn_view_bt.handle_event(event):
             return "view_bt"
         if self.btn_view_bf.handle_event(event):
