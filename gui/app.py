@@ -12,6 +12,7 @@ from gui.replay_view import ReplayScreen
 from gui.stats_view import StatsView
 from gui.play_view import PlayView
 from sudoku_grid import SudokuGrid
+from database import Database
 
 
 class App:
@@ -35,6 +36,9 @@ class App:
         self.grid = None
         self.running = True
         self.current_grid_path = ""
+
+        # Base de donnees
+        self.db = Database()
 
         # Donnees conservees entre ecrans pour la navigation
         self.bt_grid = None
@@ -69,6 +73,7 @@ class App:
             self._draw()
             pygame.display.flip()
 
+        self.db.close()
         pygame.quit()
 
     def _handle_event(self, event):
@@ -134,6 +139,10 @@ class App:
 
     def _on_menu_action(self, action, grid_path):
         """Reagit a une action du menu"""
+        if action == "export":
+            self._export_markdown()
+            return
+
         self.current_grid_path = grid_path
         self.grid = SudokuGrid(grid_path)
 
@@ -161,6 +170,7 @@ class App:
 
         # Sauvegarder les donnees
         self._save_result(method, success)
+        self.db.save_resolution(self.grid, success)
 
         # Afficher le resultat
         self.resolve_screen.setup(self.grid, method_name, success)
@@ -171,11 +181,13 @@ class App:
         # Backtracking
         self.grid.solve_backtracking()
         self._save_result("backtracking", True)
+        self.db.save_resolution(self.grid, True)
 
         # Force brute
         self.grid.solve_brute_force(max_iterations=500000)
         bf_success = self.grid.get_stats()["iterations"] < 500000
         self._save_result("force_brute", bf_success)
+        self.db.save_resolution(self.grid, bf_success)
 
         # Afficher la comparaison
         self.stats_view.setup(
@@ -239,6 +251,16 @@ class App:
                 method_name
             )
             self.current_screen = SCREEN_REPLAY
+
+    def _export_markdown(self):
+        """Exporte le rapport comparatif en Markdown depuis la base"""
+        success = self.db.export_markdown()
+        if success:
+            self.menu.import_message = "Rapport exporte dans exports/rapport_comparatif.md"
+            self.menu.import_message_timer = 240
+        else:
+            self.menu.import_message = "Aucune donnee a exporter (lancez des resolutions d'abord)"
+            self.menu.import_message_timer = 240
 
 
 def launch():
