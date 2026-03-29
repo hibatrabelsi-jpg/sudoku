@@ -1,54 +1,52 @@
 """
 Ecran du menu principal.
+Colonne gauche : actions. Colonne droite : liste de grilles + apercu.
 """
 
 import pygame
 import os
 import shutil
+from gui import constants as C
 from gui.constants import *
-from gui.components import Button, Label
+from gui.fonts import fonts
+from gui.components import Button
+
+
+PASTEL_BLUE = (160, 190, 220)
+PASTEL_MINT = (170, 220, 200)
 
 
 class MenuScreen:
-    """Menu principal avec selection de grille et choix de methode"""
 
     def __init__(self, surface):
         self.surface = surface
-        self.font_title = pygame.font.SysFont(FONT_NAME, FONT_SIZE_TITLE, bold=True)
-        self.font_sub = pygame.font.SysFont(FONT_NAME, FONT_SIZE_SUBTITLE)
-        self.font_body = pygame.font.SysFont(FONT_NAME, FONT_SIZE_BODY)
-        self.font_small = pygame.font.SysFont(FONT_NAME, FONT_SIZE_SMALL)
-
-        # Detecter les grilles disponibles
         self.grids = self._find_grids()
         self.selected_grid = 0
 
-        # Boutons de grille
-        self.grid_buttons = []
-        self._build_grid_buttons()
-
-        # Bouton d'import
-        self.btn_import = Button(
-            WINDOW_WIDTH // 2 - 100, 370, 200, 36, "Importer une grille", font_size=FONT_SIZE_SMALL)
-
         # Boutons d'action
-        btn_y = 430
-        btn_w = 280
-        btn_h = 45
-        btn_x = (WINDOW_WIDTH - btn_w) // 2
+        self.btn_backtracking = Button(0, 0, 280, BTN_HEIGHT, "Resoudre (Backtracking)")
+        self.btn_brute_force = Button(0, 0, 280, BTN_HEIGHT, "Resoudre (Force Brute)")
+        self.btn_compare = Button(0, 0, 280, BTN_HEIGHT, "Comparer les deux")
+        self.btn_play = Button(0, 0, 280, BTN_HEIGHT, "Jouer")
+        self.btn_export = Button(0, 0, 280, BTN_HEIGHT, "Exporter le rapport")
 
-        self.btn_backtracking = Button(btn_x, btn_y, btn_w, btn_h, "Resoudre (Backtracking)")
-        self.btn_brute_force = Button(btn_x, btn_y + 60, btn_w, btn_h, "Resoudre (Force Brute)")
-        self.btn_compare = Button(btn_x, btn_y + 120, btn_w, btn_h, "Comparer les deux")
-        self.btn_play = Button(btn_x, btn_y + 180, btn_w, btn_h, "Jouer")
-        self.btn_export = Button(btn_x, btn_y + 240, btn_w, btn_h, "Exporter le rapport (Markdown)")
+        # Bouton import
+        self.btn_import = Button(0, 0, 0, 36, "Importer une grille")
 
-        # Message d'import (temporaire)
+        # Scroll
+        self.scroll_offset = 0
+        self.max_visible_grids = 8
+        self.btn_scroll_up = Button(0, 0, 110, 30, "^")
+        self.btn_scroll_down = Button(0, 0, 110, 30, "v")
+
         self.import_message = ""
         self.import_message_timer = 0
 
+        # Apercu
+        self.preview_grid = None
+        self._load_preview()
+
     def _find_grids(self):
-        """Trouve les fichiers de grilles dans data/"""
         grid_dir = "data"
         if not os.path.exists(grid_dir):
             os.makedirs(grid_dir)
@@ -56,47 +54,32 @@ class MenuScreen:
         files = sorted([f for f in os.listdir(grid_dir) if f.endswith(".txt")])
         return [os.path.join(grid_dir, f) for f in files]
 
-    def _build_grid_buttons(self):
-        """Cree les boutons de selection de grille"""
-        self.grid_buttons = []
-        total = len(self.grids)
-        if total == 0:
+    def _load_preview(self):
+        if not self.grids:
+            self.preview_grid = None
             return
-
-        btn_w = 80
-        gap = 10
-        total_w = total * btn_w + (total - 1) * gap
-        start_x = (WINDOW_WIDTH - total_w) // 2
-
-        for i, path in enumerate(self.grids):
-            name = os.path.basename(path).replace(".txt", "").replace("grille", "Grille ")
-            btn = Button(start_x + i * (btn_w + gap), 320, btn_w, 40, name, font_size=FONT_SIZE_SMALL)
-            self.grid_buttons.append(btn)
+        try:
+            from sudoku_grid import SudokuGrid
+            g = SudokuGrid(self.grids[self.selected_grid])
+            self.preview_grid = [row[:] for row in g.grid]
+        except Exception:
+            self.preview_grid = None
 
     def _import_grid(self):
-        """Ouvre un explorateur de fichiers pour importer une grille"""
         try:
             import tkinter as tk
             from tkinter import filedialog
-
-            # Creer une fenetre tkinter cachee pour le dialogue
             root = tk.Tk()
             root.withdraw()
             root.attributes('-topmost', True)
-
             filepath = filedialog.askopenfilename(
                 title="Importer une grille de Sudoku",
-                filetypes=[("Fichiers texte", "*.txt"), ("Tous les fichiers", "*.*")]
-            )
-
+                filetypes=[("Fichiers texte", "*.txt"), ("Tous les fichiers", "*.*")])
             root.destroy()
 
             if filepath and os.path.exists(filepath):
-                # Lire le contenu du fichier importe
                 with open(filepath, 'r') as f:
                     new_content = f.read().strip()
-
-                # Verifier si une grille identique existe deja dans data/
                 for existing in self.grids:
                     with open(existing, 'r') as f:
                         if f.read().strip() == new_content:
@@ -104,103 +87,217 @@ class MenuScreen:
                             self.import_message_timer = 180
                             return
 
-                # Copier le fichier dans data/
                 filename = os.path.basename(filepath)
                 dest = os.path.join("data", filename)
-
-                # Si le nom existe mais le contenu est different, renommer
                 if os.path.exists(dest):
                     name, ext = os.path.splitext(filename)
                     i = 1
                     while os.path.exists(dest):
                         dest = os.path.join("data", f"{name}_{i}{ext}")
                         i += 1
-
                 shutil.copy2(filepath, dest)
-
-                # Rafraichir la liste
                 self.grids = self._find_grids()
                 self.selected_grid = len(self.grids) - 1
-                self._build_grid_buttons()
-
-                self.import_message = f"Grille importee : {os.path.basename(dest)}"
-                self.import_message_timer = 180  # 3 secondes a 60fps
-
+                self._load_preview()
+                self.import_message = f"Importee : {os.path.basename(dest)}"
+                self.import_message_timer = 180
         except Exception as e:
             self.import_message = f"Erreur : {str(e)}"
             self.import_message_timer = 180
 
     def draw(self):
-        """Dessine le menu"""
-        # Titre
-        title = self.font_title.render("Sudoku Solver", True, TEXT_TITLE)
-        title_rect = title.get_rect(centerx=WINDOW_WIDTH // 2, y=60)
-        self.surface.blit(title, title_rect)
+        ww = C.WINDOW_WIDTH
+        wh = C.WINDOW_HEIGHT
 
-        # Sous-titre
-        sub = self.font_sub.render("Analyse comparative : Force Brute vs Backtracking", True, TEXT_SECONDARY)
-        sub_rect = sub.get_rect(centerx=WINDOW_WIDTH // 2, y=110)
-        self.surface.blit(sub, sub_rect)
+        # Layout
+        gap = SP_XXXL
+        left_w = 300
+        list_w = 120
+        preview_cell = 36
+        preview_size = preview_cell * 9  # 324px
+        right_w = list_w + SP_XL + preview_size
+        total_w = left_w + gap + right_w
+        start_x = (ww - total_w) // 2
 
-        # Ligne decorative
-        line_y = 155
-        line_w = 300
-        pygame.draw.line(self.surface, GRID_LINE_THIN,
-                         (WINDOW_WIDTH // 2 - line_w // 2, line_y),
-                         (WINDOW_WIDTH // 2 + line_w // 2, line_y), 1)
+        left_x = start_x
+        list_x = start_x + left_w + gap
+        preview_x = list_x + list_w + SP_XL
+        top_y = wh // 2 - 260
 
-        # Section selection de grille
-        label = self.font_body.render("Choisir une grille :", True, TEXT_PRIMARY)
-        label_rect = label.get_rect(centerx=WINDOW_WIDTH // 2, y=280)
-        self.surface.blit(label, label_rect)
+        # =================================================================
+        # COLONNE GAUCHE — titre + actions
+        # =================================================================
+
+        title = fonts.hero.render("Sudoku Solver", True, TEXT_TITLE)
+        self.surface.blit(title, (left_x, top_y))
+
+        sub = fonts.small.render("Analyse comparative", True, TEXT_MUTED)
+        self.surface.blit(sub, (left_x, top_y + SP_XXL + SP_S))
+        sub2 = fonts.small.render("Force Brute vs Backtracking", True, TEXT_HINT)
+        self.surface.blit(sub2, (left_x, top_y + SP_XXL + SP_XL))
+
+        sep_y = top_y + SP_XXXL + SP_L
+        sep = pygame.Surface((left_w, 1), pygame.SRCALPHA)
+        sep.fill((255, 255, 255, 25))
+        self.surface.blit(sep, (left_x, sep_y))
+
+        actions_label = fonts.small.render("ACTIONS", True, TEXT_HINT)
+        self.surface.blit(actions_label, (left_x, sep_y + SP_L))
+
+        btn_start_y = sep_y + SP_XXL
+        btn_gap = SP_XXL
+        action_btns = [self.btn_backtracking, self.btn_brute_force,
+                       self.btn_compare, self.btn_play, self.btn_export]
+        for i, btn in enumerate(action_btns):
+            btn.rect.x = left_x
+            btn.rect.y = btn_start_y + i * btn_gap
+            btn.rect.width = left_w
+            btn.draw(self.surface)
+
+        # =================================================================
+        # COLONNE DROITE — liste de grilles (scrollable) + apercu
+        # =================================================================
+
+        # Label liste
+        grids_label = fonts.small.render("GRILLES", True, TEXT_HINT)
+        self.surface.blit(grids_label, (list_x, top_y))
+
+        # Liste scrollable
+        list_y = top_y + SP_XL
+        item_h = BTN_HEIGHT + SP_S
+        visible_start = self.scroll_offset
+        visible_end = min(len(self.grids), self.scroll_offset + self.max_visible_grids)
+        can_scroll_up = self.scroll_offset > 0
+        can_scroll_down = visible_end < len(self.grids)
+
+        # Fleche haut
+        if can_scroll_up:
+            self.btn_scroll_up.rect = pygame.Rect(list_x, list_y - 30 - SP_XS, list_w, 26)
+            self.btn_scroll_up.draw(self.surface)
 
         # Boutons de grille
-        for i, btn in enumerate(self.grid_buttons):
-            if i == self.selected_grid:
-                pygame.draw.rect(self.surface, CELL_SELECTED, btn.rect, border_radius=8)
-                pygame.draw.rect(self.surface, BTN_BORDER_HOVER, btn.rect, width=2, border_radius=8)
-                text_surf = btn.font.render(btn.text, True, BTN_TEXT)
-                text_rect = text_surf.get_rect(center=btn.rect.center)
-                self.surface.blit(text_surf, text_rect)
-            else:
-                btn.draw(self.surface)
+        self.grid_buttons = []
+        for idx in range(visible_start, visible_end):
+            i_vis = idx - visible_start
+            name = os.path.basename(self.grids[idx]).replace(".txt", "").replace("grille", "Grille ")
+            btn_rect = pygame.Rect(list_x, list_y + i_vis * item_h, list_w, BTN_HEIGHT)
 
-        # Bouton d'import
+            if idx == self.selected_grid:
+                pygame.draw.rect(self.surface, SURFACE_LIGHT, btn_rect, border_radius=BTN_RADIUS)
+                pygame.draw.rect(self.surface, PASTEL_BLUE, btn_rect, width=2, border_radius=BTN_RADIUS)
+                text_surf = fonts.button.render(name, True, TEXT_LIGHT)
+                self.surface.blit(text_surf, text_surf.get_rect(center=btn_rect.center))
+            else:
+                pygame.draw.rect(self.surface, BTN_BG, btn_rect, border_radius=BTN_RADIUS)
+                pygame.draw.rect(self.surface, BTN_BORDER, btn_rect, width=1, border_radius=BTN_RADIUS)
+                text_surf = fonts.button.render(name, True, BTN_TEXT)
+                self.surface.blit(text_surf, text_surf.get_rect(center=btn_rect.center))
+
+            self.grid_buttons.append((btn_rect, idx))
+
+        # Fleche bas
+        if can_scroll_down:
+            arrow_y = list_y + (visible_end - visible_start) * item_h + SP_XS
+            self.btn_scroll_down.rect = pygame.Rect(list_x, arrow_y, list_w, 26)
+            self.btn_scroll_down.draw(self.surface)
+
+        # =================================================================
+        # APERCU — a droite de la liste
+        # =================================================================
+
+        preview_label = fonts.small.render("APERCU", True, TEXT_HINT)
+        self.surface.blit(preview_label, (preview_x, top_y))
+
+        self._draw_preview(preview_x, top_y + SP_XL, preview_cell)
+
+        # Bouton import — sous l'apercu
+        import_y = top_y + SP_XL + preview_size + SP_L + SP_XL
+        self.btn_import.rect = pygame.Rect(preview_x, import_y, preview_size, 36)
         self.btn_import.draw(self.surface)
 
         # Message d'import
         if self.import_message_timer > 0:
             self.import_message_timer -= 1
-            is_warning = "existe deja" in self.import_message or "Erreur" in self.import_message
-            color = (200, 130, 30) if is_warning else (60, 150, 60)
-            msg = self.font_small.render(self.import_message, True, color)
-            msg_rect = msg.get_rect(centerx=WINDOW_WIDTH // 2, y=410)
-            self.surface.blit(msg, msg_rect)
+            is_warn = "existe deja" in self.import_message or "Erreur" in self.import_message
+            color = (220, 180, 100) if is_warn else PASTEL_MINT
+            msg = fonts.small.render(self.import_message, True, color)
+            self.surface.blit(msg, (preview_x, import_y + 36 + SP_S))
 
-        # Boutons d'action
-        self.btn_backtracking.draw(self.surface)
-        self.btn_brute_force.draw(self.surface)
-        self.btn_compare.draw(self.surface)
-        self.btn_play.draw(self.surface)
-        self.btn_export.draw(self.surface)
+    # =====================================================================
+    # APERCU
+    # =====================================================================
+
+    def _draw_preview(self, px, py, cell):
+        if not self.preview_grid:
+            no_grid = fonts.body.render("Aucune grille", True, TEXT_HINT)
+            self.surface.blit(no_grid, (px, py + SP_XXL))
+            return
+
+        grid_size = cell * 9
+
+        # Nom + infos
+        name = os.path.basename(self.grids[self.selected_grid]).replace(".txt", "").replace("grille", "Grille ")
+        vides = sum(1 for r in self.preview_grid for v in r if v == 0)
+        info = fonts.small.render(f"{name}  —  {vides} cases vides", True, TEXT_MUTED)
+        self.surface.blit(info, (px, py))
+
+        gy = py + SP_L + SP_S
+
+        # Cases
+        for r in range(9):
+            for c in range(9):
+                x = px + c * cell
+                y = gy + r * cell
+                rect = pygame.Rect(x, y, cell, cell)
+                pygame.draw.rect(self.surface, (245, 245, 245), rect)
+
+                val = self.preview_grid[r][c]
+                if val != 0:
+                    text = fonts.button.render(str(val), True, (30, 30, 30))
+                    self.surface.blit(text, text.get_rect(center=rect.center))
+
+        # Lignes
+        for i in range(10):
+            is_block = (i % 3 == 0)
+            color = (100, 100, 105) if is_block else (200, 200, 200)
+            width = 2 if is_block else 1
+            pygame.draw.line(self.surface, color,
+                             (px, gy + i * cell), (px + grid_size, gy + i * cell), width)
+            pygame.draw.line(self.surface, color,
+                             (px + i * cell, gy), (px + i * cell, gy + grid_size), width)
+
+    # =====================================================================
+    # EVENTS
+    # =====================================================================
 
     def handle_event(self, event):
-        """
-        Gere les evenements.
-        Retourne un tuple (action, grid_path) ou None.
-        Actions possibles : "backtracking", "brute_force", "compare", "play"
-        """
-        # Import de grille
         if self.btn_import.handle_event(event):
             self._import_grid()
             return None
 
-        # Selection de grille
-        for i, btn in enumerate(self.grid_buttons):
-            if btn.handle_event(event):
-                self.selected_grid = i
+        # Scroll
+        if self.btn_scroll_up.handle_event(event):
+            self.scroll_offset = max(0, self.scroll_offset - 1)
+        if self.btn_scroll_down.handle_event(event):
+            if self.scroll_offset + self.max_visible_grids < len(self.grids):
+                self.scroll_offset += 1
 
-        # Boutons d'action
+        # Molette souris
+        if event.type == pygame.MOUSEWHEEL:
+            if event.y > 0:
+                self.scroll_offset = max(0, self.scroll_offset - 1)
+            elif event.y < 0:
+                if self.scroll_offset + self.max_visible_grids < len(self.grids):
+                    self.scroll_offset += 1
+
+        # Clic sur un bouton de grille
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for btn_rect, idx in self.grid_buttons:
+                if btn_rect.collidepoint(event.pos):
+                    if idx != self.selected_grid:
+                        self.selected_grid = idx
+                        self._load_preview()
+
         grid_path = self.grids[self.selected_grid] if self.grids else None
 
         if self.btn_backtracking.handle_event(event):
@@ -213,5 +310,4 @@ class MenuScreen:
             return ("play", grid_path)
         if self.btn_export.handle_event(event):
             return ("export", grid_path)
-
         return None
