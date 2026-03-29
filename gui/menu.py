@@ -41,6 +41,7 @@ class MenuScreen:
         self.btn_brute_force = Button(btn_x, btn_y + 60, btn_w, btn_h, "Resoudre (Force Brute)")
         self.btn_compare = Button(btn_x, btn_y + 120, btn_w, btn_h, "Comparer les deux")
         self.btn_play = Button(btn_x, btn_y + 180, btn_w, btn_h, "Jouer")
+        self.btn_export = Button(btn_x, btn_y + 240, btn_w, btn_h, "Exporter le rapport (Markdown)")
 
         # Message d'import (temporaire)
         self.import_message = ""
@@ -181,6 +182,7 @@ class MenuScreen:
         self.btn_brute_force.draw(self.surface)
         self.btn_compare.draw(self.surface)
         self.btn_play.draw(self.surface)
+        self.btn_export.draw(self.surface)
 
     def handle_event(self, event):
         """
@@ -209,5 +211,7 @@ class MenuScreen:
             return ("compare", grid_path)
         if self.btn_play.handle_event(event):
             return ("play", grid_path)
+        if self.btn_export.handle_event(event):
+            return ("export", grid_path)
 
         return None
