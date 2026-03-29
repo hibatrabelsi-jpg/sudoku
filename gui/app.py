@@ -5,7 +5,9 @@ et la connexion avec la classe SudokuGrid.
 """
 
 import pygame
+import gui.constants as const
 from gui.constants import *
+from gui.fonts import fonts
 from gui.menu import MenuScreen
 from gui.resolve_screen import ResolveScreen
 from gui.replay_view import ReplayScreen
@@ -20,9 +22,38 @@ class App:
 
     def __init__(self):
         pygame.init()
-        self.surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+
+        # Detecter la resolution de l'ecran — fenetre reduite de 20%
+        info = pygame.display.Info()
+        const.WINDOW_WIDTH = int(info.current_w * 0.8)
+        const.WINDOW_HEIGHT = int(info.current_h * 0.8)
+
+        # Centrer le bloc (grille + gap + panneau) horizontalement
+        gap = SP_XL
+        panel_w = 300
+        total_content_w = const.GRID_SIZE + gap + panel_w
+        const.GRID_OFFSET_X = (const.WINDOW_WIDTH - total_content_w) // 2
+        const.PANEL_X = const.GRID_OFFSET_X + const.GRID_SIZE + gap
+        const.PANEL_WIDTH = panel_w
+
+        # Vertical — titre en haut, grille en dessous, espace pour controles en bas
+        const.GRID_OFFSET_Y = SP_XXXL + SP_M
+        const.PANEL_Y = const.GRID_OFFSET_Y
+
+        self.surface = pygame.display.set_mode(
+            (const.WINDOW_WIDTH, const.WINDOW_HEIGHT))
         pygame.display.set_caption("Sudoku Solver")
         self.clock = pygame.time.Clock()
+
+        # Fond degrade noir -> gris fonce (genere une seule fois)
+        self.bg_gradient = self._create_gradient(
+            const.WINDOW_WIDTH, const.WINDOW_HEIGHT,
+            (30, 30, 35),    # gris fonce en haut
+            (12, 12, 14)     # quasi noir en bas
+        )
+
+        # Charger les polices
+        fonts.load()
 
         # Ecrans
         self.menu = MenuScreen(self.surface)
@@ -40,7 +71,7 @@ class App:
         # Base de donnees
         self.db = Database()
 
-        # Donnees conservees entre ecrans pour la navigation
+        # Donnees conservees entre ecrans
         self.bt_grid = None
         self.bt_initial_grid = None
         self.bt_snapshots = []
@@ -52,6 +83,18 @@ class App:
         self.bf_snapshots = []
         self.bf_stats = {}
         self.bf_success = False
+
+    @staticmethod
+    def _create_gradient(width, height, color_top, color_bottom):
+        """Cree une surface avec un degrade vertical"""
+        surface = pygame.Surface((width, height))
+        for y in range(height):
+            t = y / height
+            r = int(color_top[0] + (color_bottom[0] - color_top[0]) * t)
+            g = int(color_top[1] + (color_bottom[1] - color_top[1]) * t)
+            b = int(color_top[2] + (color_bottom[2] - color_top[2]) * t)
+            pygame.draw.line(surface, (r, g, b), (0, y), (width, y))
+        return surface
 
     def run(self):
         """Boucle principale"""
@@ -77,7 +120,6 @@ class App:
         pygame.quit()
 
     def _handle_event(self, event):
-        """Dispatch les evenements vers l'ecran actif"""
         if self.current_screen == SCREEN_MENU:
             result = self.menu.handle_event(event)
             if result:
@@ -114,13 +156,11 @@ class App:
                 self.current_screen = SCREEN_MENU
 
     def _update(self, dt):
-        """Met a jour l'ecran actif"""
         if self.current_screen == SCREEN_REPLAY:
             self.replay_screen.update(dt)
 
     def _draw(self):
-        """Dessine l'ecran actif"""
-        self.surface.fill(BG_COLOR)
+        self.surface.blit(self.bg_gradient, (0, 0))
 
         if self.current_screen == SCREEN_MENU:
             self.menu.draw()
@@ -138,7 +178,6 @@ class App:
     # =========================================================================
 
     def _on_menu_action(self, action, grid_path):
-        """Reagit a une action du menu"""
         if action == "export":
             self._export_markdown()
             return
@@ -148,19 +187,15 @@ class App:
 
         if action == "backtracking":
             self._solve_single("backtracking")
-
         elif action == "brute_force":
             self._solve_single("force_brute")
-
         elif action == "compare":
             self._solve_compare()
-
         elif action == "play":
             self.play_view.setup(self.grid)
             self.current_screen = SCREEN_PLAY
 
     def _solve_single(self, method):
-        """Lance une seule methode et affiche le resultat"""
         if method == "backtracking":
             success = self.grid.solve_backtracking()
             method_name = "Backtracking"
@@ -168,37 +203,29 @@ class App:
             success = self.grid.solve_brute_force(max_iterations=500000)
             method_name = "Force Brute"
 
-        # Sauvegarder les donnees
         self._save_result(method, success)
         self.db.save_resolution(self.grid, success)
 
-        # Afficher le resultat
         self.resolve_screen.setup(self.grid, method_name, success)
         self.current_screen = SCREEN_RESOLVE
 
     def _solve_compare(self):
-        """Lance les deux methodes et affiche la comparaison"""
-        # Backtracking
         self.grid.solve_backtracking()
         self._save_result("backtracking", True)
         self.db.save_resolution(self.grid, True)
 
-        # Force brute
         self.grid.solve_brute_force(max_iterations=500000)
         bf_success = self.grid.get_stats()["iterations"] < 500000
         self._save_result("force_brute", bf_success)
         self.db.save_resolution(self.grid, bf_success)
 
-        # Afficher la comparaison
         self.stats_view.setup(
             self.bt_stats, self.bf_stats,
             self.bt_success, self.bf_success,
-            self.current_grid_path
-        )
+            self.current_grid_path)
         self.current_screen = SCREEN_COMPARE
 
     def _save_result(self, method, success):
-        """Sauvegarde les resultats d'une resolution pour navigation ulterieure"""
         if method == "backtracking":
             self.bt_grid = [row[:] for row in self.grid.grid]
             self.bt_initial_grid = [row[:] for row in self.grid.initial_grid]
@@ -213,7 +240,6 @@ class App:
             self.bf_success = success
 
     def _show_resolve(self, method):
-        """Affiche l'ecran de resolution pour une methode depuis la comparaison"""
         if method == "backtracking" and self.bt_grid:
             self.grid.grid = [row[:] for row in self.bt_grid]
             self.grid.initial_grid = [row[:] for row in self.bt_initial_grid]
@@ -221,7 +247,6 @@ class App:
             self.grid.snapshots = list(self.bt_snapshots)
             self.resolve_screen.setup(self.grid, "Backtracking", self.bt_success)
             self.current_screen = SCREEN_RESOLVE
-
         elif method == "force_brute" and self.bf_grid:
             self.grid.grid = [row[:] for row in self.bf_grid]
             self.grid.initial_grid = [row[:] for row in self.bf_initial_grid]
@@ -231,7 +256,6 @@ class App:
             self.current_screen = SCREEN_RESOLVE
 
     def _start_replay(self, method):
-        """Lance le replay pour une methode specifique"""
         if method == "backtracking" and self.bt_snapshots:
             self.replay_screen.setup(
                 self.bt_snapshots, self.bt_initial_grid, "Backtracking")
@@ -242,18 +266,15 @@ class App:
             self.current_screen = SCREEN_REPLAY
 
     def _start_replay_current(self):
-        """Lance le replay depuis l'ecran de resolution"""
         if self.grid.snapshots:
             method_name = self.grid.stats.get("methode", "").replace("_", " ").title()
             self.replay_screen.setup(
                 self.grid.get_snapshots(),
                 [row[:] for row in self.grid.initial_grid],
-                method_name
-            )
+                method_name)
             self.current_screen = SCREEN_REPLAY
 
     def _export_markdown(self):
-        """Exporte le rapport comparatif en Markdown depuis la base"""
         success = self.db.export_markdown()
         if success:
             self.menu.import_message = "Rapport exporte dans exports/rapport_comparatif.md"
@@ -264,7 +285,6 @@ class App:
 
 
 def launch():
-    """Point d'entree pour lancer l'interface Pygame"""
     app = App()
     app.run()
 
